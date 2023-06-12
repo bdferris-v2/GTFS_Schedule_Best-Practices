@@ -12,6 +12,16 @@ Practices are organized into four primary sections:
 * __[Practice Recommendations Organized by File](#practice-recommendations-organized-by-file):__ Recommendations are organized by file and field in the GTFS to facilitate mapping practices back to the official GTFS reference.
 * __[Practice Recommendations Organized by Case](#practice-recommendations-organized-by-case):__ With particular cases, such as loop routes, practices may need to be applied across several files and fields. Such recommendations are consolidated in this section.
 
+## Term Definitions
+
+This section defines terms that are used throughout this document.
+
+<dl>
+  <dt>Significant</dt>
+  <dd>A numeric value that is sufficiently different from other typical values of the same type to be worthy of attention.  Often used when discussing best-practices for distances and durations.  For example, a "significantly large distance" is one that is exceedingly large compared to simlar values in the dataset or across all datasets.  This document is not prescriptive about defining "sufficiently different", though feed producers and consumers might use various statistical tests or fixed thresholds set from observed data for identifying outliers.</dd>
+</dl>
+
+
 ## Dataset Publishing & General Practices
 
 * Datasets should be published at a public, permanent URL, including the zip file name. (e.g., www.agency.org/gtfs/gtfs.zip). Ideally, the URL should be directly downloadable without requiring login to access the file, to facilitate download by consuming software applications. While it is recommended (and the most common practice) to make a GTFS dataset openly downloadable, if a data provider does need to control access to GTFS for licensing or other reasons, it is recommended to control access to the GTFS dataset using API keys, which will facilitate automatic downloads.
@@ -20,6 +30,7 @@ Practices are organized into four primary sections:
 * One GTFS dataset should contain current and upcoming service (sometimes called a “merged” dataset). Google transitfeed tool's [merge function](https://github.com/google/transitfeed/wiki/Merge) can be used to create a merged dataset from two different GTFS feeds.
     * At any time, the published GTFS dataset should be valid for at least the next 7 days, and ideally for as long as the operator is confident that the schedule will continue to be operated.
     * If possible, the GTFS dataset should cover at least the next 30 days of service.
+    * Significant gaps in service, as identified by consecutive days without service, may indicate missing data or incorrectly merged datasets.
 * Remove old services (expired calendars) from the feed.
 * If a service modification will go into effect in 7 days or fewer, express this service change through a [GTFS-realtime](https://developers.google.com/transit/gtfs-realtime/) feed (service advisories or trip updates) rather than static GTFS dataset.
 * The web-server hosting GTFS data should be configured to correctly report the file modification date (see [HTTP/1.1 - Request for Comments 2616](https://tools.ietf.org/html/rfc2616#section-14.29), under Section 14.29).
@@ -62,9 +73,11 @@ __Examples:__
 | | By default, `stop_name` should not contain generic or redundant words like “Station” or “Stop”, but some edge cases are allowed.<ul><li>When it is actually part of the name (Union Station, Central Station<li>When the `stop_name` is too generic (such as if it is the name of the city). “Station”, “Terminal”, or other words make the meaning clear.</ul> |
 | `stop_lat` & `stop_lon` | Stop locations should be as accurate possible. Stop locations should have an error of __no more__ than four meters when compared to the actual stop position. |
 | | Stop locations should be placed very near to the pedestrian right of way where a passenger will board (i.e. correct side of the street). |
+| | Two stop or station locations should not be closer than would be physically possible in the real world, assuming accurate locations.  If two stops or stations are significantly close, it may indicate incorrect stop or station modelling. |
 | | If a stop location is shared across separate data feeds (i.e. two agencies use exactly the same stop / boarding facility), indicate the stop is shared by using the exact same `stop_lat` and `stop_lon` for both stops. |
 | `parent_station` & `location_type` | Many stations or terminals have multiple boarding facilities (depending on mode, they might be called a bus bay, platform, wharf, gate, or another term). In such cases, feed producers should describe stations, boarding facilities (also called child stops), and their relation. <ul><li>The station or terminal should be defined as a record in `stops.txt` with `location_type = 1`.</li><li>Each boarding facility should be defined as a stop with `location_type = 0`. The `parent_station` field should reference the `stop_id` of the station the boarding facility is in.</li></ul> |
 | | When naming the station and child stops, set names that are well-recognized by riders, and can help riders to identify the station and boarding facility (bus bay, platform, wharf, gate, etc.).<table class='example'><thead><tr><th>Parent Station Name</th><th>Child Stop Name</th></tr></thead><tbody><tr><td>Chicago Union Station</td><td>Chicago Union Station Platform 19</td></tr><tr><td>San Francisco Ferry Building Terminal</td><td>San Francisco Ferry Building Terminal Gate E</td></tr><tr><td>Downtown Transit Center</td><td>Downtown Transit Center Bay B</td></tr></tbody></table> |
+| | If a child stop is significantly far from its parent station or if a child stop is significantly close to a station that is not the stop's parent, it may indicate incorret stop or station modelling. |
 
 ### routes.txt
 
@@ -153,16 +166,17 @@ Loop routes: Loop routes require special `stop_times` considerations. (See: [Loo
 
 ### transfers.txt
 
-`transfers.transfer_type` can be one of four values [defined in the GTFS](https://github.com/google/transit/blob/master/gtfs/spec/en/reference.md/#transferstxt). These `transfer_type` definitions are quoted from the GTFS Specification below, _in italics_, with additional practice recommendations.
+Transfers should typically be defined between points for distances where a passenger might be reasonably expected to walk.  If the transfer distance is significantly large, it may indicate the transfer was unnecessarily or incorrectly specified.
 
 | Field Name | Recommendation |
 | --- | --- |
-| `transfer_type` | <q>0 or (empty): This is a recommended transfer point between routes.</q><br>If there are multiple transfer opportunities that include a superior option (i.e. a transit center with additional amenities or a station with adjacent or connected boarding facilities/platforms), specify a recommended transfer point. |
+| `transfer_type` | The `transfer_type` definitions are quoted from the [GTFS Specification](https://github.com/google/transit/blob/master/gtfs/spec/en/reference.md/#transferstxt) below, along with additional best practice recommendations. |
+| | <q>0 or (empty): This is a recommended transfer point between routes.</q><br>If there are multiple transfer opportunities that include a superior option (i.e. a transit center with additional amenities or a station with adjacent or connected boarding facilities/platforms), specify a recommended transfer point. |
 | | <q>1: This is a timed transfer point between two routes. The departing vehicle is expected to wait for the arriving one, with sufficient time for a passenger to transfer between routes.</q><br>This transfer type overrides a required interval to reliably make transfers.  As an example, Google Maps assumes that passengers need 3 minutes to safely make a transfer. Other applications may assume other defaults. |
 | | <q>2: This transfer requires a minimum amount of time between arrival and departure to ensure a connection. The time required to transfer is specified by <code>min_transfer_time</code>.</q><br>Specify minimum transfer time if there are obstructions or other factors which increase the time to travel between stops. |
 | | <q>3: Transfers are not possible between routes at this location.</q><br>Specify this value if transfers are not possible because of physical barriers, or if they are made unsafe or complicated by difficult road crossings or gaps in the pedestrian network. |
 | | If in-seat (block) transfers are allowed between trips, then the last stop of the arriving trip must be the same as the first stop of the departing trip. |
-
+| `min_transfer_time` | Similar to transfer distance, mininimum transfer times should typically be durations where a passenger might be reasonably expected to walk or wait.  If the minimum transfer time is significantly long or short, it may indicate the transfer was unnecessarily or incorrectly specified. |
 
 ### feed_info.txt
 
